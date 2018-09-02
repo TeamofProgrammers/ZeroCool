@@ -8,6 +8,7 @@ import configparser
 import re
 
 config = configparser.ConfigParser()
+# config.read("test.ini")
 config.read("config.ini")
 class RelayBot(irc.IRCClient):
 	def __init__(self,nick,mode):
@@ -28,7 +29,9 @@ class RelayBot(irc.IRCClient):
 	def privmsg(self, user, channel, msg):
 		user = user.split('!', 1)[0]
 		if(self.mode == "host" and user.lower() == config['host']['personality'].lower()):
-			victim.protocol.relay("%s"  % msg)
+			src_str = re.compile(self.nickname, re.IGNORECASE)
+			message = src_str.sub("guys", msg)
+			victim.protocol.relay("%s"  % message)
 		if(self.mode == "victim"):
 			if (self.nickname.lower() in msg.lower()):
 				src_str = re.compile(self.nickname, re.IGNORECASE)
