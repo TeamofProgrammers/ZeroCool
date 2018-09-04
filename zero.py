@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
-"""Origin Script: https://twistedmatrix.com/documents/16.4.1/_downloads/ircLogBot.py"""
 from twisted.words.protocols import irc
-from twisted.internet import reactor, protocol
-import time, sys
-import ipdb
-import configparser
-import re
+from twisted.internet import reactor, protocol, ssl
+import ipdb, re, configparser, time, sys
+
 
 config = configparser.ConfigParser()
-# config.read("test.ini")
+#config.read("test.ini")
 config.read("config.ini")
 class RelayBot(irc.IRCClient):
 	def __init__(self,nick,mode):
@@ -21,6 +18,7 @@ class RelayBot(irc.IRCClient):
 		irc.IRCClient.connectionMade(self)
 
 	def connectionLost(self, reason):
+		print("connection  lost %s" % reason)
 		irc.IRCClient.connectionLost(self, reason)
 
 	def signedOn(self):
@@ -61,8 +59,8 @@ class RelayBotFactory(protocol.ClientFactory):
 		return self.protocol
 
 	def clientConnectionLost(self, connector, reason):
-		connector.connect() #	If we get disconnected, reconnect to server
-
+		#connector.connect() #	If we get disconnected, reconnect to server
+		pass
 	def clientConnectionFailed(self, connector, reason):
 		print("connection failed:", reason)
 		reactor.stop()
@@ -72,7 +70,18 @@ if __name__ == '__main__':
 	
 	host = RelayBotFactory(config['host']['channel'],config['host']['nick'],'host')
 	victim = RelayBotFactory(config['victim']['channel'],config['victim']['nick'],'victim')
-	reactor.connectTCP(config['host']['server'] , int(config['host']['port']), host)
-	reactor.connectTCP(config['victim']['server'], int(config['victim']['port']), victim)
+	#ipdb.set_trace()
+	if(config['host'].getboolean('ssl') == True):
+		#https://twistedmatrix.com/documents/13.1.0/api/twisted.internet.interfaces.IReactorSSL.connectSSL.html
+		print("host ssl enabled")
+		reactor.connectSSL(config['host']['server'] , int(config['host']['port']), host, ssl.ClientContextFactory())
+	else:
+		#https://twistedmatrix.com/documents/current/api/twisted.internet.interfaces.IReactorTCP.connectTCP.html
+		reactor.connectTCP(config['host']['server'] , int(config['host']['port']), host)
+	if(config['victim'].getboolean('ssl') == True):
+		print("victim ssl enabled")
+		reactor.connectSSL(config['victim']['server'], int(config['victim']['port']), victim, ssl.ClientContextFactory())
+	else:
+		reactor.connectTCP(config['victim']['server'], int(config['victim']['port']), victim)
 
 	reactor.run()
