@@ -5,13 +5,12 @@ import ipdb, re, configparser, time, sys
 
 
 config = configparser.ConfigParser()
-#config.read("test.ini")
-config.read("config.ini")
-class RelayBot(irc.IRCClient):
-	def __init__(self,nick,mode):
-		super(RelayBot, self).__init__()
+config.read("test.ini")
+#config.read("config.ini")
+class HostBot(irc.IRCClient):
+	def __init__(self,nick):
+		super(HostBot, self).__init__()
 		self.nickname = nick
-		self.mode = mode
 
 	def connectionMade(self):
 		print("connection made")
@@ -26,15 +25,11 @@ class RelayBot(irc.IRCClient):
 
 	def privmsg(self, user, channel, msg):
 		user = user.split('!', 1)[0]
-		if(self.mode == "host" and user.lower() == config['host']['personality'].lower()):
+		if(user.lower() == config['host']['personality'].lower()):
 			src_str = re.compile(self.nickname, re.IGNORECASE)
 			message = src_str.sub("guys", msg)
 			victim.protocol.relay("%s"  % message)
-		if(self.mode == "victim"):
-			if (self.nickname.lower() in msg.lower()):
-				src_str = re.compile(self.nickname, re.IGNORECASE)
-				message = src_str.sub(config['host']['personality'], msg)
-				host.protocol.relay("%s" % message)
+
 		print("<%s> %s" % (user, msg))
 		
 	def alterCollidedNick(self, nickname):
@@ -42,6 +37,61 @@ class RelayBot(irc.IRCClient):
 
 	def relay(self,msg):
 		self.msg(self.factory.channel, msg)
+
+class VictimBot(irc.IRCClient):
+	def __init__(self,nick):
+		super(VictimBot, self).__init__()
+		self.nickname = nick
+
+	def connectionMade(self):
+		print("connection made")
+		irc.IRCClient.connectionMade(self)
+
+	def connectionLost(self, reason):
+		print("connection  lost %s" % reason)
+		irc.IRCClient.connectionLost(self, reason)
+
+	def signedOn(self):
+		self.join(self.factory.channel)
+
+	def privmsg(self, user, channel, msg):
+		user = user.split('!', 1)[0]
+		if (self.nickname.lower() in msg.lower()):
+			src_str = re.compile(self.nickname, re.IGNORECASE)
+			message = src_str.sub(config['host']['personality'], msg)
+			host.protocol.relay("%s" % message)
+		print("<%s> %s" % (user, msg))
+		
+
+	def relay(self,msg):
+		self.msg(self.factory.channel, msg)
+		
+class PopcornBot(irc.IRCClient):
+	def __init__(self,nick):
+		super(PopcornBot, self).__init__()
+		self.nickname = nick
+
+	def connectionMade(self):
+		print("connection made")
+		irc.IRCClient.connectionMade(self)
+
+	def connectionLost(self, reason):
+		print("connection  lost %s" % reason)
+		irc.IRCClient.connectionLost(self, reason)
+
+	def signedOn(self):
+		self.join(self.factory.channel)
+
+	def privmsg(self, user, channel, msg):
+		user = user.split('!', 1)[0]
+		print("<%s> %s" % (user, msg))
+		
+	def alterCollidedNick(self, nickname):
+		return nickname + '_'
+
+	def relay(self,msg):
+		self.msg(self.factory.channel, msg)
+
 
 class RelayBotFactory(protocol.ClientFactory):
 
@@ -52,11 +102,20 @@ class RelayBotFactory(protocol.ClientFactory):
 		self.protocol = None
 
 	def buildProtocol(self, addr):
-		# p = RelayBot(self.nick,self.mode)
-		# p.factory = self
-		self.protocol = RelayBot(self.nick, self.mode)
-		self.protocol.factory = self
-		return self.protocol
+		if(self.mode == 'host'):
+			self.protocol = HostBot(self.nick)
+			self.protocol.factory = self
+			return self.protocol
+		elif(self.mode == 'victim'):
+			self.protocol = VictimBot(self.nick)
+			self.protocol.factory = self
+			return self.protocol
+		elif(self.mode == 'popcorn'):
+			self.protocol = PopcornBot(self.nick)
+			self.protocol.factory = self
+			return self.protocol
+		else:
+			raise Exception("Mode must be host, victim or popcorn")
 
 	def clientConnectionLost(self, connector, reason):
 		#connector.connect() #	If we get disconnected, reconnect to server
