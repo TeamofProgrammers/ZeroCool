@@ -4,8 +4,8 @@ from twisted.internet import reactor, protocol, ssl
 import ipdb, re, configparser, time, sys
 
 config = configparser.ConfigParser()
-config.read("test.ini")
-#config.read("config.ini")
+#config.read("test.ini")
+config.read("config.ini")
 class HostBot(irc.IRCClient):
 	def __init__(self,nick):
 		super(HostBot, self).__init__()
@@ -65,7 +65,6 @@ class VictimBot(irc.IRCClient):
 		else:
 			popcorn.protocol.VictimStandard(msg,user)
 		print("<%s> %s" % (user, msg))
-		
 
 	def relay(self,msg):
 		self.msg(self.factory.channel, msg)
@@ -88,6 +87,13 @@ class PopcornBot(irc.IRCClient):
 
 	def privmsg(self, user, channel, msg):
 		user = user.split('!', 1)[0]
+		if(msg.lower().startswith("!host ")):
+			message = msg[6:]
+			host.protocol.relay(message)
+		if(msg.lower().startswith("!victim ")):
+			message = msg[8:]
+			victim.protocol.relay(message)
+			
 		print("<%s> %s" % (user, msg))
 		
 	def alterCollidedNick(self, nickname):
