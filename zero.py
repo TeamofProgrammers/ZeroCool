@@ -3,7 +3,6 @@ from twisted.words.protocols import irc
 from twisted.internet import reactor, protocol, ssl
 import ipdb, re, configparser, time, sys
 
-
 config = configparser.ConfigParser()
 config.read("test.ini")
 #config.read("config.ini")
@@ -13,11 +12,11 @@ class HostBot(irc.IRCClient):
 		self.nickname = nick
 
 	def connectionMade(self):
-		print("connection made")
+		print("host connection made")
 		irc.IRCClient.connectionMade(self)
 
 	def connectionLost(self, reason):
-		print("connection  lost %s" % reason)
+		print("host connection  lost %s" % reason)
 		irc.IRCClient.connectionLost(self, reason)
 
 	def signedOn(self):
@@ -29,7 +28,9 @@ class HostBot(irc.IRCClient):
 			src_str = re.compile(self.nickname, re.IGNORECASE)
 			message = src_str.sub("guys", msg)
 			victim.protocol.relay("%s"  % message)
-
+			popcorn.protocol.HostRelay(message,user)
+		else:
+			popcorn.protocol.HostStandard(msg,user)
 		print("<%s> %s" % (user, msg))
 		
 	def alterCollidedNick(self, nickname):
@@ -44,11 +45,11 @@ class VictimBot(irc.IRCClient):
 		self.nickname = nick
 
 	def connectionMade(self):
-		print("connection made")
+		print("victim connection made")
 		irc.IRCClient.connectionMade(self)
 
 	def connectionLost(self, reason):
-		print("connection  lost %s" % reason)
+		print("victim connection  lost %s" % reason)
 		irc.IRCClient.connectionLost(self, reason)
 
 	def signedOn(self):
@@ -60,6 +61,9 @@ class VictimBot(irc.IRCClient):
 			src_str = re.compile(self.nickname, re.IGNORECASE)
 			message = src_str.sub(config['host']['personality'], msg)
 			host.protocol.relay("%s" % message)
+			popcorn.protocol.VictimRelay(message,user)
+		else:
+			popcorn.protocol.VictimStandard(msg,user)
 		print("<%s> %s" % (user, msg))
 		
 
@@ -72,11 +76,11 @@ class PopcornBot(irc.IRCClient):
 		self.nickname = nick
 
 	def connectionMade(self):
-		print("connection made")
+		print("popcorn connection made")
 		irc.IRCClient.connectionMade(self)
 
 	def connectionLost(self, reason):
-		print("connection  lost %s" % reason)
+		print("popcorn connection  lost %s" % reason)
 		irc.IRCClient.connectionLost(self, reason)
 
 	def signedOn(self):
@@ -89,9 +93,21 @@ class PopcornBot(irc.IRCClient):
 	def alterCollidedNick(self, nickname):
 		return nickname + '_'
 
-	def relay(self,msg):
-		self.msg(self.factory.channel, msg)
+	def HostRelay(self,msg,user):
+		message = "\x0303Host:\x0f\x02<%s>\x0f\x0303 %s" % (user,msg)
+		self.msg(self.factory.channel, message)
 
+	def VictimRelay(self,msg,user):
+		message = "\x0304Victim:\x0f\x02<%s>\x0f\x0304 %s" % (user,msg)
+		self.msg(self.factory.channel, message)
+	
+	def HostStandard(self,msg,user):
+		message = "\x0311Host:\x0f\x02<%s>\x0f\x0311 %s" % (user,msg)
+		self.msg(self.factory.channel, message)
+	
+	def VictimStandard(self,msg,user):
+		message = "\x0313Victim:\x0f\x02<%s>\x0f\x0313 %s" % (user,msg)
+		self.msg(self.factory.channel, message)
 
 class RelayBotFactory(protocol.ClientFactory):
 
@@ -125,10 +141,11 @@ class RelayBotFactory(protocol.ClientFactory):
 		reactor.stop()
 
 if __name__ == '__main__':
-	global host,victim
+	global host,victim,popcorn
 	
 	host = RelayBotFactory(config['host']['channel'],config['host']['nick'],'host')
 	victim = RelayBotFactory(config['victim']['channel'],config['victim']['nick'],'victim')
+	popcorn = RelayBotFactory(config['popcorn']['channel'],config['popcorn']['nick'],'popcorn')
 	#ipdb.set_trace()
 	if(config['host'].getboolean('ssl') == True):
 		#https://twistedmatrix.com/documents/13.1.0/api/twisted.internet.interfaces.IReactorSSL.connectSSL.html
@@ -142,5 +159,9 @@ if __name__ == '__main__':
 		reactor.connectSSL(config['victim']['server'], int(config['victim']['port']), victim, ssl.ClientContextFactory())
 	else:
 		reactor.connectTCP(config['victim']['server'], int(config['victim']['port']), victim)
-
+	if(config['popcorn'].getboolean('ssl') == True):
+		print("popcorn ssl enabled")
+		reactor.connectSSL(config['popcorn']['server'], int(config['popcorn']['port']), popcorn, ssl.ClientContextFactory())
+	else:
+		reactor.connectTCP(config['popcorn']['server'], int(config['popcorn']['port']), popcorn)
 	reactor.run()
