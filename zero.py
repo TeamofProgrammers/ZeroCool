@@ -87,13 +87,27 @@ class PopcornBot(irc.IRCClient):
 
 	def privmsg(self, user, channel, msg):
 		user = user.split('!', 1)[0]
+		#ToDo: Need regular expression here. 
+		#Rules. 
+		#1. String must start with !. White space matters, the very first character MUST be a !. 
+		#2. End the match with the first space. Everything after the space will be sent to the dispatch[EventName]Command handler as a string. 
 		if(msg.lower().startswith("!host ")):
 			message = msg[6:]
-			host.protocol.relay(message)
+			dispatch = self.getCommandDispatch('!host')
+			dispatch(message,user)
 		if(msg.lower().startswith("!victim ")):
 			message = msg[8:]
 			victim.protocol.relay(message)
-			
+		if(msg.lower().startswith("!personality ")):
+			message = msg[13:]
+			dispatch = self.getCommandDispatch('!personality')
+			dispatch(message,user)
+		if(msg.lower().startswith("!help")):
+			dispatch = self.getCommandDispatch('!help')
+			dispatch()
+		if(msg.lower().startswith("!status")):
+			dispatch = self.getCommandDispatch('!status')
+			dispatch()
 		print("<%s> %s" % (user, msg))
 		
 	def alterCollidedNick(self, nickname):
@@ -115,6 +129,45 @@ class PopcornBot(irc.IRCClient):
 		message = "\x0313Victim:\x0f\x02<%s>\x0f\x0313 %s" % (user,msg)
 		self.msg(self.factory.channel, message)
 
+	def status(self,msg):
+		message = "\x02[status]\x0f %s" % msg
+		self.msg(self.factory.channel, message)
+	
+	def dispatchHostCommand(self,message,user):
+		host.protocol.relay(message)
+	
+	def dispatchVictimCommand():pass 
+	
+	def dispatchHelpCommand(self):
+		help = "Commands are: !host <message to host>, !victim <message to victim>, !personality <new nick to follow on host>, and !status"
+		self.msg(self.factory.channel, help)
+		
+	def dispatchUnhandledCommand():pass
+		
+	#TODO: Input sanitization
+	def dispatchPersonalityCommand(self,message,user):
+		oldPersonality = config['host']['personality']
+		config['host']['personality'] = message
+		self.status("%s has changed host personality from %s to %s" % (user,oldPersonality,message))
+
+	def dispatchStatusCommand(self):
+		victim = config['victim']
+		host = config['host']
+		popcorn = config['popcorn']
+		message = "\x02Host:\x0f\n   Server: %s\n   Channel: %s\n   Personality: %s\n   BotNick: %s" % (host['server'],host['channel'],host['personality'],host['nick'])
+		self.msg(self.factory.channel, message)
+		message = "\x02Victim:\x0f\n   Server: %s\n   Channel: %s\n   BotNick:   %s" % (victim['server'], victim['channel'],victim['nick'])
+		self.msg(self.factory.channel, message)
+		
+	def getCommandDispatch(self,command):
+		return{
+			'!host' : self.dispatchHostCommand,
+			'!victim': self.dispatchVictimCommand,
+			'!help': self.dispatchHelpCommand,
+			'!personality': self.dispatchPersonalityCommand,
+			'!status': self.dispatchStatusCommand
+		}.get(command, self.dispatchUnhandledCommand)
+	
 class RelayBotFactory(protocol.ClientFactory):
 
 	def __init__(self, channel, nick,mode):
