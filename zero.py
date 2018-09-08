@@ -10,6 +10,7 @@ class HostBot(irc.IRCClient):
 	def __init__(self,nick):
 		super(HostBot, self).__init__()
 		self.nickname = nick
+		self.AcutalizedPersonality = config['host']['personality']
 
 	def connectionMade(self):
 		print("host connection made")
@@ -22,9 +23,14 @@ class HostBot(irc.IRCClient):
 	def signedOn(self):
 		self.join(self.factory.channel)
 
+	#Host Bot PrivMsg
 	def privmsg(self, user, channel, msg):
 		user = user.split('!', 1)[0]
-		if(user.lower() == config['host']['personality'].lower()):
+		# Inject 1
+		
+		search = re.search(config['host']['personality'],user,re.IGNORECASE)
+		if(search): self.ActualizedPersonality = user
+		if(user.lower() == self.ActualizedPersonality.lower()):
 			src_str = re.compile(self.nickname, re.IGNORECASE)
 			message = src_str.sub("guys", msg)
 			victim.protocol.relay("%s"  % message)
@@ -37,7 +43,9 @@ class HostBot(irc.IRCClient):
 		return nickname + '_'
 
 	def relay(self,msg):
-		self.msg(self.factory.channel, msg)
+		str = re.compile(config['host']['personality'], re.IGNORECASE)
+		message = str.sub(self.ActualizedPersonality, msg)
+		self.msg(self.factory.channel, message)
 
 class VictimBot(irc.IRCClient):
 	def __init__(self,nick):
